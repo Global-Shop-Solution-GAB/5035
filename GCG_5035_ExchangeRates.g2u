@@ -1,0 +1,190 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'DRH 4/13/2018
+'This project checks for an excel file, 
+' if found it will read in the file and update the 
+' exchange rates and move the file to a processed file location
+
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String)
+
+'check for directory
+F.Intrinsic.Control.CallSub(Check_Dir)
+'check if program is running
+F.Intrinsic.Control.CallSub(Is_Running)
+'check for excel file and read to dataTable
+F.Intrinsic.Control.CallSub(Check_Excel)
+'format table and save
+F.Intrinsic.Control.CallSub(Save_Data)
+'save file to processed location and delete file in orginal location
+F.Intrinsic.Control.CallSub(Move_File)
+'remove PID file
+F.Intrinsic.Control.CallSub(Remove_PID)
+'end program
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.Check_Dir.Start
+F.Intrinsic.Control.Try
+V.Local.i.Declare(Long, 0)
+V.Local..BulkDeclareString(sError, sDir, sSubDir)
+V.Local.bExists.Declare(Boolean, False)
+ 
+F.Intrinsic.String.Build("{0}\Custom\5035_Exchange_Rates",V.Caller.GlobalDir,V.Local.sDir) 
+F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExists) 
+F.Intrinsic.Control.If(V.Local.bExists,=,False) 
+	F.Intrinsic.File.CreateDir(V.Local.sDir) 
+Function.Intrinsic.Control.EndIf
+F.Intrinsic.String.Split("Processed*!*Is_Running","*!*",V.Local.sSubDir) 
+F.Intrinsic.Control.For(V.Local.i,0,V.Local.sSubDir.UBound,1) 
+	F.Intrinsic.String.Build("{0}\{1}",V.Local.sDir,V.Local.sSubDir(V.Local.i).Trim,V.Local.sSubDir(V.Local.i)) 
+	F.Intrinsic.File.DirExists(V.Local.sSubDir(V.Local.i),V.Local.bExists) 
+	F.Intrinsic.Control.If(V.Local.bExists,=,False) 
+		F.Intrinsic.File.CreateDir(V.Local.sSubDir(V.Local.i)) 
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i) 
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+Program.Sub.Check_Dir.End
+
+Program.Sub.Is_Running.Start
+F.Intrinsic.Control.Try
+
+V.Local..BulkDeclareString(sError, sFile, sCurrentPIDProcess)
+V.Local.bExists.Declare(Boolean)
+
+'check to see if program is already running. First check for file
+F.Intrinsic.String.Build("{0}\Custom\5035_Exchange_Rates\Is_Running\Running_PID_Y.txt",V.Caller.GlobalDir,V.Local.sFile)
+F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists,=,False)
+'Create Program Status file to let it know its running
+	F.Intrinsic.File.String2File(V.Local.sFile,V.Ambient.PID.String)
+Function.Intrinsic.Control.Else
+ 'then the file exists: get the PID from the file to see if the process is still running
+	F.Intrinsic.File.File2String(V.Local.sFile, V.Local.sCurrentPIDProcess)
+	F.Intrinsic.Task.PIDRunning(V.Local.sCurrentPIDProcess,V.Local.bExists)
+	Function.Intrinsic.Control.If(V.Local.bExists)
+		'the the program is running- don't start new process
+		Function.Intrinsic.Control.End
+
+	Function.Intrinsic.Control.Else
+		'the program has stopped, but did not delete the file. Delete the file and create a new file for current run
+		Function.Intrinsic.File.DeleteFile(V.Local.sFile)
+		F.Intrinsic.File.String2File(V.Local.sFile,V.Ambient.PID.String)
+	Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.Control.ExitSub
+
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+
+Program.Sub.Is_Running.End
+
+Program.Sub.Check_Excel.Start
+F.Intrinsic.Control.Try
+V.Local..BulkDeclareString(sError,sFile, sData, sTypes,sFields)
+V.Local.bExists.Declare(Boolean, False)
+
+F.Intrinsic.String.Build("{0}\Custom\5035_Exchange_Rates\Curtabelle.xls",V.Caller.GlobalDir,V.Local.sFile)
+
+F.Intrinsic.File.Exists(V.Local.sFile,V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists)
+	F.Automation.MSExcel.ReadSpreadsheet(V.Local.sFile, V.Local.sData)
+	V.Local.sTypes.Set("String*!*String*!*String*!*String*!*String*!*String*!*String")
+	V.Local.sFields.Set("FROM_ISO_CODE1*!*TO_ISO_CODE1*!*DATE_EXCH_RATE*!*4*!*EXCHANGE_RATE*!*6*!*7")
+	F.Data.DataTable.CreateFromString("Data", V.Local.sData, V.Local.sFields , V.Local.sTypes,"*!*", "$!$", TRUE)
+F.Intrinsic.Control.Else
+	F.Intrinsic.Control.CallSub(Remove_PID)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ExitSub
+
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+Program.Sub.Check_Excel.End
+
+Program.Sub.Save_Data.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+Function.Data.DataTable.SetValueFormat("Data", -1, "DATE_EXCH_RATE", "DATE_EXCH_RATE", "YYYYMMDD")
+Function.Data.DataTable.SetValueFormat("Data", -1, "EXCHANGE_RATE", "EXCHANGE_RATE", "#########0.00000")
+Function.Data.DataTable.AddExpressionColumn("Data", "TO_ISO_CODE", "String", "Substring(TO_ISO_CODE1, 1, 3)")
+Function.Data.DataTable.AddExpressionColumn("Data", "FROM_ISO_CODE", "String", "Substring(FROM_ISO_CODE1, 1, 3)")
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass) 
+F.Data.DataTable.SaveToDB("Data", "con", "EXCHANGE_RATES","DATE_EXCH_RATE*!*TO_ISO_CODE*!*FROM_ISO_CODE", 256, "DATE_EXCH_RATE@!@DATE_EXCH_RATE*!*EXCHANGE_RATE@!@EXCHANGE_RATE*!*TO_ISO_CODE@!@TO_ISO_CODE*!*FROM_ISO_CODE@!@FROM_ISO_CODE")
+F.ODBC.Connection!con.Close
+F.Data.DataTable.Close("Data")
+
+F.Intrinsic.Control.ExitSub
+
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+Program.Sub.Save_Data.End
+
+Program.Sub.Move_File.Start
+F.Intrinsic.Control.Try
+
+V.Local..BulkDeclareString(sError,sFile, sTargetFile, sDayTime)
+V.Local.iRet.Declare(Long)
+F.Intrinsic.String.Build("{0}\Custom\5035_Exchange_Rates\Curtabelle.xls",V.Caller.GlobalDir,V.Local.sFile)
+
+V.Local.sDayTime.Set(V.Ambient.Now)
+F.Intrinsic.String.Replace(V.Local.sDayTime, "/", "_", V.Local.sDayTime)
+F.Intrinsic.String.Replace(V.Local.sDayTime, " ", "_", V.Local.sDayTime)
+F.Intrinsic.String.Replace(V.Local.sDayTime, ":", "_", V.Local.sDayTime)
+F.Intrinsic.String.Build("{0}\Custom\5035_Exchange_Rates\Processed\Curtabelle_{1}.xls",V.Caller.GlobalDir, V.Local.sDayTime, V.Local.sTargetFile)
+Function.Intrinsic.File.MoveFile(V.Local.sFile, V.Local.sTargetFile, V.Local.iRet)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+Program.Sub.Move_File.End
+
+Program.Sub.Remove_PID.Start
+F.Intrinsic.Control.Try
+
+V.Local.sError.BulkDeclareString(sError, sFile)
+'path where file exists
+F.Intrinsic.String.Build("{0}\Custom\5035_Exchange_Rates\Is_Running\Running_PID_Y.txt",V.Caller.GlobalDir,V.Local.sFile)
+'delete file for the next run
+Function.Intrinsic.File.DeleteFile(V.Local.sFile)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+Program.Sub.Remove_PID.End
+
